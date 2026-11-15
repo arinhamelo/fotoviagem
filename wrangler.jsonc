@@ -1,0 +1,20 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "fotoviagem",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-15",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "PROMPTS",
+      "id": "265e088c512645c687a50145b4b0ab80"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
