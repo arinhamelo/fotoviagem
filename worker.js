@@ -37,8 +37,8 @@ function cookie(value, maxAge) {
   return `fv_admin=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 }
 async function getPrompt(env) {
-  if (!env.PROMPTS) return DEFAULT_PROMPT;
-  return (await env.PROMPTS.get("active_prompt")) || DEFAULT_PROMPT;
+  if (!env.STICKERS) return DEFAULT_PROMPT;
+  return (await env.STICKERS.get("active_prompt")) || DEFAULT_PROMPT;
 }
 async function readJson(request, max = 20000) {
   const text = await request.text();
@@ -63,7 +63,7 @@ async function generate(request, env) {
   // O limite global gratuito da Cloudflare continua sendo compartilhado com outros projetos da conta.
   const today = new Date().toISOString().slice(0, 10);
   const usageKey = "usage:" + today;
-  const used = Number(await env.PROMPTS.get(usageKey) || "0");
+  const used = Number(await env.STICKERS.get(usageKey) || "0");
   const DAILY_LIMIT = 50;
   if (used >= DAILY_LIMIT) return json({ error: "O limite gratuito diário do Stickers foi atingido. Tente novamente após a renovação diária da cota." }, 429);
 
@@ -74,7 +74,7 @@ async function generate(request, env) {
       seed: Math.floor(Math.random() * 2147483647)
     });
     if (!result?.image) return json({ error: "O modelo não retornou uma imagem. Tente novamente." }, 502);
-    await env.PROMPTS.put(usageKey, String(used + 1), { expirationTtl: 172800 });
+    await env.STICKERS.put(usageKey, String(used + 1), { expirationTtl: 172800 });
     return json({ image: result.image, mimeType: "image/jpeg", text, remainingToday: DAILY_LIMIT - used - 1 });
   } catch (error) {
     const message = String(error?.message || "Falha na geração de imagem.");
@@ -104,24 +104,24 @@ export default {
       }
       if (url.pathname === "/api/admin/prompt" && request.method === "PUT") {
         if (!(await sessionValid(request, env))) return json({ error: "Acesso não autorizado." }, 401);
-        if (!env.PROMPTS) return json({ error: "O armazenamento PROMPTS ainda não está vinculado ao Worker." }, 503);
+        if (!env.STICKERS) return json({ error: "O armazenamento STICKERS ainda não está vinculado ao Worker." }, 503);
         const body = await readJson(request, 12000);
         const prompt = String(body.prompt || "").trim();
         if (prompt.length < 80 || prompt.length > 1800 || !prompt.includes("{{TEXT}}") || !prompt.includes("{{COLOR}}")) return json({ error: "O prompt precisa ter entre 80 e 1.800 caracteres e conter {{TEXT}} e {{COLOR}}." }, 400);
-        await env.PROMPTS.put("active_prompt", prompt);
+        await env.STICKERS.put("active_prompt", prompt);
         return json({ ok: true, prompt });
       }
 
       if (url.pathname === "/api/library" && request.method === "GET") {
-        if (!env.LIBRARY || !env.PROMPTS) return json({ error: "Biblioteca ainda não configurada." }, 503);
-        const categories = JSON.parse(await env.PROMPTS.get("library_categories") || "[]");
+        if (!env.STICKERS_FILES || !env.STICKERS) return json({ error: "Biblioteca ainda não configurada." }, 503);
+        const categories = JSON.parse(await env.STICKERS.get("library_categories") || "[]");
         const category = url.searchParams.get("category") || "";
         const selected = category ? categories.filter(c => c.id === category) : categories;
         const items = [];
         for (const cat of selected) {
           let cursor;
           do {
-            const page = await env.LIBRARY.list({ prefix: cat.id + "/", cursor, limit: 1000 });
+            const page = await env.STICKERS_FILES.list({ prefix: cat.id + "/", cursor, limit: 1000 });
             for (const obj of page.objects) items.push({ key: obj.key, name: obj.customMetadata?.originalName || obj.key.split("/").pop(), category: cat.id, url: "/api/library/file?key=" + encodeURIComponent(obj.key) });
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor);
@@ -129,10 +129,10 @@ export default {
         return json({ categories, items });
       }
       if (url.pathname === "/api/library/file" && request.method === "GET") {
-        if (!env.LIBRARY) return json({ error: "Biblioteca não configurada." }, 503);
+        if (!env.STICKERS_FILES) return json({ error: "Biblioteca não configurada." }, 503);
         const key = url.searchParams.get("key") || "";
         if (!/^[a-z0-9-]+\/[a-zA-Z0-9._-]+\.png$/i.test(key)) return json({ error: "Arquivo inválido." }, 400);
-        const object = await env.LIBRARY.get(key);
+        const object = await env.STICKERS_FILES.get(key);
         if (!object) return json({ error: "Arquivo não encontrado." }, 404);
         const headers = new Headers({ "Content-Type": "image/png", "Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff" });
         object.writeHttpMetadata(headers);
@@ -141,8 +141,8 @@ export default {
       }
       if (url.pathname.startsWith("/api/admin/library/")) {
         if (!(await sessionValid(request, env))) return json({ error: "Acesso não autorizado." }, 401);
-        if (!env.LIBRARY || !env.PROMPTS) return json({ error: "Vincule LIBRARY e PROMPTS ao Worker." }, 503);
-        const getCategories = async () => JSON.parse(await env.PROMPTS.get("library_categories") || "[]");
+        if (!env.STICKERS_FILES || !env.STICKERS) return json({ error: "Vincule STICKERS_FILES e STICKERS ao Worker." }, 503);
+        const getCategories = async () => JSON.parse(await env.STICKERS.get("library_categories") || "[]");
         if (url.pathname === "/api/admin/library/category" && request.method === "POST") {
           const body = await readJson(request, 2000), name = String(body.name || "").trim().replace(/\s+/g, " ").slice(0, 48);
           if (!name) return json({ error: "Informe o nome da categoria." }, 400);
@@ -151,7 +151,7 @@ export default {
           const slug = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "categoria";
           const id = slug + "-" + crypto.randomUUID().slice(0, 6);
           categories.push({ id, name });
-          await env.PROMPTS.put("library_categories", JSON.stringify(categories));
+          await env.STICKERS.put("library_categories", JSON.stringify(categories));
           return json({ ok: true, categories });
         }
         if (url.pathname === "/api/admin/library/order" && request.method === "POST") {
@@ -160,7 +160,7 @@ export default {
           if (!Array.isArray(ids) || ids.length !== categories.length || new Set(ids).size !== categories.length || ids.some(id => typeof id !== "string" || !categories.some(c => c.id === id))) return json({ error: "A ordem enviada é inválida." }, 400);
           const byId = new Map(categories.map(c => [c.id, c]));
           const reordered = ids.map(id => byId.get(id));
-          await env.PROMPTS.put("library_categories", JSON.stringify(reordered));
+          await env.STICKERS.put("library_categories", JSON.stringify(reordered));
           return json({ ok: true, categories: reordered });
         }
         if (url.pathname === "/api/admin/library/upload" && request.method === "POST") {
@@ -177,7 +177,7 @@ export default {
             const originalName = String(file.name || "stickers.png").slice(0, 120);
             const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.png$/i, "").slice(0, 80) || "stickers";
             const key = category + "/" + crypto.randomUUID() + "-" + safeName + ".png";
-            await env.LIBRARY.put(key, bytes, { httpMetadata: { contentType: "image/png" }, customMetadata: { originalName } });
+            await env.STICKERS_FILES.put(key, bytes, { httpMetadata: { contentType: "image/png" }, customMetadata: { originalName } });
             uploaded.push(key);
           }
           return json({ ok: true, uploaded: uploaded.length, message: uploaded.length + " arquivo(s) enviado(s)." });
@@ -185,7 +185,7 @@ export default {
         if (url.pathname === "/api/admin/library/file" && request.method === "DELETE") {
           const body = await readJson(request, 2000), key = String(body.key || "");
           if (!/^[a-z0-9-]+\/[a-zA-Z0-9._-]+\.png$/i.test(key)) return json({ error: "Arquivo inválido." }, 400);
-          await env.LIBRARY.delete(key);
+          await env.STICKERS_FILES.delete(key);
           return json({ ok: true });
         }
         if (url.pathname === "/api/admin/library/category" && request.method === "DELETE") {
@@ -194,11 +194,11 @@ export default {
           if (!categories.some(c => c.id === id)) return json({ error: "Categoria não encontrada." }, 404);
           let cursor;
           do {
-            const page = await env.LIBRARY.list({ prefix: id + "/", cursor, limit: 1000 });
-            if (page.objects.length) await env.LIBRARY.delete(page.objects.map(o => o.key));
+            const page = await env.STICKERS_FILES.list({ prefix: id + "/", cursor, limit: 1000 });
+            if (page.objects.length) await env.STICKERS_FILES.delete(page.objects.map(o => o.key));
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor);
-          await env.PROMPTS.put("library_categories", JSON.stringify(categories.filter(c => c.id !== id)));
+          await env.STICKERS.put("library_categories", JSON.stringify(categories.filter(c => c.id !== id)));
           return json({ ok: true });
         }
         return json({ error: "Endpoint administrativo não encontrado." }, 404);
