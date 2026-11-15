@@ -38,11 +38,80 @@ function renderLibraryChoices(data,grid){grid.innerHTML="";for(const item of dat
 async function openLibrary(){try{const data=await loadLibrary();const select=$("libraryCategory"),grid=$("libraryChoices");select.innerHTML='<option value="">Todas as categorias</option>'+data.categories.map(c=>'<option value="'+c.id+'">'+escapeHtml(c.name)+'</option>').join("");renderLibraryChoices(data,grid);$("libraryPicker").classList.remove("hidden");select.onchange=async()=>{const d=await loadLibrary(select.value);renderLibraryChoices(d,grid)}}catch(e){status(e.message,"error")}}
 $("openLibrary").onclick=openLibrary;
 
-async function api(path,method="GET",body){const r=await fetch(path,{method,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined,credentials:"same-origin"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Falha na solicitação.");return d}
-$("login").onclick=async()=>{try{await api("/api/admin/login","POST",{password:$("adminPassword").value});$("loginArea").classList.add("hidden");$("libraryArea").classList.remove("hidden");adminStatus("Acesso autorizado.","success")}catch(e){adminStatus(e.message,"error")}};
-
-$("logout").onclick=async()=>{await api("/api/admin/logout","POST",{});$("loginArea").classList.remove("hidden");$("libraryArea").classList.add("hidden");$("adminPassword").value="";adminStatus("Sessão encerrada.")};
-const originalLogin=$("login").onclick;$("login").onclick=async()=>{await originalLogin();if(!$("libraryArea").classList.contains("hidden")){try{await refreshAdminLibrary()}catch(e){adminStatus(e.message,"error")}}};
+async function api(path,method="GET",body){
+  const isForm=body instanceof FormData;
+  const r=await fetch(path,{method,headers:body&&!isForm?{"Content-Type":"application/json"}:{},body:body?(isForm?body:JSON.stringify(body)):undefined,credentials:"same-origin"});
+  let d={};try{d=await r.json()}catch{throw new Error("Resposta inválida do servidor.")};
+  if(!r.ok)throw new Error(d.error||"Falha na solicitação.");
+  return d;
+}
+function fillCategorySelect(select,categories,placeholder){
+  const current=select.value;
+  select.innerHTML='<option value="">'+placeholder+'</option>'+categories.map(c=>'<option value="'+escapeHtml(c.id)+'">'+escapeHtml(c.name)+'</option>').join("");
+  if(categories.some(c=>c.id===current))select.value=current;
+}
+async function refreshAdminLibrary(selectedId=""){
+  const data=await api("/api/library");
+  const uploadSelect=$("uploadCategory"),manageSelect=$("manageCategory");
+  fillCategorySelect(uploadSelect,data.categories,"Selecione uma categoria");
+  fillCategorySelect(manageSelect,data.categories,"Selecione uma categoria");
+  if(selectedId&&data.categories.some(c=>c.id===selectedId)){uploadSelect.value=selectedId;manageSelect.value=selectedId}
+  renderAdminLibrary(data);
+}
+function renderAdminLibrary(data){
+  const selected=$("manageCategory").value,grid=$("adminLibraryGrid");
+  grid.innerHTML="";
+  const items=data.items.filter(item=>!selected||item.category===selected);
+  if(!items.length){const p=document.createElement("p");p.className="small";p.textContent=selected?"Nenhum PNG cadastrado nesta categoria.":"Crie uma categoria e envie seus PNGs.";grid.append(p);return}
+  for(const item of items){
+    const card=document.createElement("div");card.className="library-item";
+    const img=document.createElement("img");img.src=item.url;img.alt=item.name;
+    const name=document.createElement("span");name.textContent=item.name;
+    const del=document.createElement("button");del.type="button";del.className="secondary";del.style.marginTop="7px";del.textContent="Excluir PNG";
+    del.onclick=async()=>{if(!confirm('Excluir "'+item.name+'" da biblioteca?'))return;del.disabled=true;try{await api("/api/admin/library/file","DELETE",{key:item.key});adminStatus("PNG excluído.", "success");await refreshAdminLibrary(selected)}catch(e){adminStatus(e.message,"error");del.disabled=false}};
+    card.append(img,name,del);grid.append(card);
+  }
+}
+$("createCategory").onclick=async()=>{
+  const button=$("createCategory"),name=$("newCategory").value.trim();
+  if(!name){adminStatus("Digite o nome da categoria.","error");return}
+  button.disabled=true;
+  try{const result=await api("/api/admin/library/category","POST",{name});$("newCategory").value="";await refreshAdminLibrary(result.categories?.at(-1)?.id||"");adminStatus("Categoria criada com sucesso.","success")}
+  catch(e){adminStatus(e.message,"error")}finally{button.disabled=false}
+};
+$("newCategory").addEventListener("keydown",e=>{if(e.key==="Enter")$("createCategory").click()});
+$("manageCategory").onchange=async()=>{try{const data=await api("/api/library");renderAdminLibrary(data)}catch(e){adminStatus(e.message,"error")}};
+$("uploadLibrary").onclick=async()=>{
+  const button=$("uploadLibrary"),category=$("uploadCategory").value,files=[...$("libraryFiles").files];
+  if(!category){adminStatus("Selecione a categoria para os arquivos.","error");return}
+  if(!files.length){adminStatus("Selecione pelo menos um arquivo PNG.","error");return}
+  if(files.length>30){adminStatus("Envie no máximo 30 arquivos por vez.","error");return}
+  if(files.some(f=>f.type!=="image/png"||f.size>8*1024*1024)){adminStatus("Todos os arquivos devem ser PNG e ter no máximo 8 MB.","error");return}
+  const form=new FormData();form.append("category",category);files.forEach(f=>form.append("files",f));
+  button.disabled=true;
+  try{const result=await api("/api/admin/library/upload","POST",form);$("libraryFiles").value="";await refreshAdminLibrary(category);adminStatus(result.message||"PNG(s) enviados com sucesso.","success")}
+  catch(e){adminStatus(e.message,"error")}finally{button.disabled=false}
+};
+$("deleteCategory").onclick=async()=>{
+  const id=$("manageCategory").value;
+  if(!id){adminStatus("Selecione a categoria que deseja excluir.","error");return}
+  const category=$("manageCategory").selectedOptions[0]?.textContent||"";
+  if(!confirm('Excluir a categoria "'+category+'" e todos os PNGs dela? Esta ação não pode ser desfeita.'))return;
+  const button=$("deleteCategory");button.disabled=true;
+  try{await api("/api/admin/library/category","DELETE",{id});await refreshAdminLibrary();adminStatus("Categoria e seus arquivos excluídos.","success")}
+  catch(e){adminStatus(e.message,"error")}finally{button.disabled=false}
+};
+$("login").onclick=async()=>{
+  const button=$("login");button.disabled=true;
+  try{await api("/api/admin/login","POST",{password:$("adminPassword").value});$("loginArea").classList.add("hidden");$("libraryArea").classList.remove("hidden");await refreshAdminLibrary();adminStatus("Acesso autorizado.","success")}
+  catch(e){$("loginArea").classList.remove("hidden");$("libraryArea").classList.add("hidden");adminStatus(e.message,"error")}
+  finally{button.disabled=false}
+};
+$("logout").onclick=async()=>{
+  const button=$("logout");button.disabled=true;
+  try{await api("/api/admin/logout","POST",{});$("loginArea").classList.remove("hidden");$("libraryArea").classList.add("hidden");$("adminPassword").value="";adminStatus("Sessão encerrada.")}
+  catch(e){adminStatus(e.message,"error")}finally{button.disabled=false}
+};
 if(location.hash==="#admin")$("adminOpen").click();
 
 })();
