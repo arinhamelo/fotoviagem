@@ -49,36 +49,38 @@ function cleanText(value) {
   return String(value || "").trim().replace(/[\u0000-\u001f]/g, " ").slice(0, 90);
 }
 async function generate(request, env) {
-  if (!env.GEMINI_API_KEY) return json({ error: "A chave da API Gemini ainda não foi configurada no servidor." }, 503);
+  if (!env.AI) return json({ error: "O serviço gratuito de geração ainda não está vinculado ao Worker." }, 503);
   const body = await readJson(request, 5000);
   const text = cleanText(body.text);
   const color = body.color === "white" ? "pure white" : "pure black";
   if (!text) return json({ error: "Digite o texto que deseja transformar em lettering." }, 400);
+
   const template = await getPrompt(env);
   const prompt = template.replaceAll("{{TEXT}}", text).replaceAll("{{COLOR}}", color);
-  const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
-  const upstream = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      model: "gemini-3.1-flash-image",
-      input: prompt,
-      response_format: { type: "image", aspect_ratio: "1:1" }
-    })
-  });
-  const payload = await upstream.json().catch(() => ({}));
-  if (!upstream.ok) {
-    const message = payload?.error?.message || "O Gemini não conseguiu gerar o lettering.";
-    return json({ error: message }, upstream.status === 429 ? 429 : 502);
+  if (prompt.length > 2048) return json({ error: "O prompt administrativo ultrapassa o limite de 2.048 caracteres do modelo. Reduza o texto no painel administrativo." }, 400);
+
+  // Limite conservador do próprio FotoViagem para manter o consumo diário previsível.
+  // O limite global gratuito da Cloudflare continua sendo compartilhado com outros projetos da conta.
+  const today = new Date().toISOString().slice(0, 10);
+  const usageKey = "usage:" + today;
+  const used = Number(await env.PROMPTS.get(usageKey) || "0");
+  const DAILY_LIMIT = 50;
+  if (used >= DAILY_LIMIT) return json({ error: "O limite gratuito diário do FotoViagem foi atingido. Tente novamente após a renovação diária da cota." }, 429);
+
+  try {
+    const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+      prompt,
+      steps: 4,
+      seed: Math.floor(Math.random() * 2147483647)
+    });
+    if (!result?.image) return json({ error: "O modelo não retornou uma imagem. Tente novamente." }, 502);
+    await env.PROMPTS.put(usageKey, String(used + 1), { expirationTtl: 172800 });
+    return json({ image: result.image, mimeType: "image/jpeg", text, remainingToday: DAILY_LIMIT - used - 1 });
+  } catch (error) {
+    const message = String(error?.message || "Falha na geração de imagem.");
+    if (/limit|quota|neuron|billing|exceeded/i.test(message)) return json({ error: "A cota gratuita de IA da Cloudflare foi atingida ou está temporariamente indisponível. Nenhuma cobrança deve ser autorizada pelo plano gratuito." }, 429);
+    return json({ error: "Falha ao gerar o lettering com FLUX. " + message.slice(0, 240) }, 502);
   }
-  let image = payload?.output_image;
-  if (!image?.data && Array.isArray(payload?.steps)) {
-    for (const step of payload.steps) {
-      for (const block of step.content || []) if (block.type === "image" && block.data) image = block;
-    }
-  }
-  if (!image?.data) return json({ error: "O Gemini respondeu, mas não devolveu uma imagem. Tente novamente." }, 502);
-  return json({ image: image.data, mimeType: image.mime_type || "image/png", text });
 }
 
 export default {
@@ -86,7 +88,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { ...corsHeaders, "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
-      if (url.pathname === "/api/health" && request.method === "GET") return json({ ok: true, geminiConfigured: !!env.GEMINI_API_KEY, adminConfigured: !!env.ADMIN_PASSWORD });
+      if (url.pathname === "/api/health" && request.method === "GET") return json({ ok: true, imageModel: "@cf/black-forest-labs/flux-1-schnell", aiConfigured: !!env.AI, adminConfigured: !!env.ADMIN_PASSWORD });
       if (url.pathname === "/api/admin/login" && request.method === "POST") {
         if (!env.ADMIN_PASSWORD) return json({ error: "Configure ADMIN_PASSWORD como secret do Worker." }, 503);
         const body = await readJson(request, 2000);
