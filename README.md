@@ -1,37 +1,34 @@
 # FotoViagem
 
-Editor de fotografias com lettering gerado pelo Gemini.
+Editor de fotografias com lettering raster gerado pelo FLUX.1 Schnell, via Cloudflare Workers AI.
 
 ## Arquitetura
 
-- Interface em HTML/CSS/JavaScript, sem dependências de build.
-- Cloudflare Worker para intermediar chamadas ao Gemini.
-- Chave Gemini mantida como secret do Worker.
-- Cloudflare KV para armazenar o prompt administrativo.
-- A fotografia original permanece no navegador e não é enviada ao Gemini.
-- O lettering é gerado como imagem isolada sobre fundo chroma key, convertido para PNG com transparência no navegador.
+- Interface em HTML/CSS/JavaScript.
+- Cloudflare Worker com binding Workers AI (sem chave externa).
+- Modelo de imagem: `@cf/black-forest-labs/flux-1-schnell`.
+- Cloudflare KV para prompt administrativo e contador diário.
+- A fotografia original permanece no navegador e não é enviada ao modelo.
+- O lettering é gerado como imagem raster JPEG sobre fundo chroma key e convertido em PNG com transparência no navegador.
 - Composição e exportação acontecem localmente, mantendo as dimensões em pixels da fotografia original.
 
-## Configuração necessária
+## Limites de custo
 
-Configure estes secrets no Worker:
+Workers AI inclui 10.000 Neurons por dia sem custo. No plano Workers Free, novas solicitações são interrompidas quando a cota diária é atingida. No Workers Paid, o consumo acima da cota gratuita pode ser cobrado. O FotoViagem também limita suas próprias gerações a 50 por dia, mas esse contador não mede o uso de outros projetos na mesma conta Cloudflare.
 
-- `GEMINI_API_KEY`: chave da API Google Gemini.
-- `ADMIN_PASSWORD`: senha forte para acessar o painel administrativo.
+## Configuração
 
-O namespace KV `FOTOVIAGEM_PROMPTS` já está declarado em `wrangler.jsonc`.
+- Binding Workers AI: `AI`.
+- KV namespace: `PROMPTS`.
+- Secret `ADMIN_PASSWORD`: senha forte para o painel administrativo.
+
+Não é necessária chave Gemini nem chave externa de inferência.
 
 ## Desenvolvimento e publicação
-
-Use Wrangler para executar localmente e publicar:
 
 - `npx wrangler dev`
 - `npx wrangler deploy`
 
-Antes de publicar, configure os dois secrets. Nunca coloque a chave Gemini no HTML, em arquivos públicos ou no GitHub.
+## Observações
 
-## Observações técnicas
-
-A API de geração de imagens do Gemini não garante transparência nativa. O aplicativo pede um fundo chroma key uniforme e o remove por processamento de pixels no navegador. A qualidade da máscara depende de o modelo respeitar o fundo solicitado; confira o resultado visual e gere novamente se houver resíduos de cor.
-
-O modelo configurado é `gemini-3.1-flash-image`. Disponibilidade, limites e cobrança dependem do projeto Google AI e da cota vigente da API.
+A geração de imagem não garante que o modelo respeite perfeitamente o texto solicitado ou o fundo chroma key. O editor remove o verde por processamento de pixels; confira o resultado antes de exportar. FLUX.1 Schnell retorna imagem raster, não SVG.
