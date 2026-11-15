@@ -121,7 +121,7 @@ export default {
         for (const cat of selected) {
           let cursor;
           do {
-            const page = await env.STICKERS_FILES.list({ prefix: cat.id + "/", cursor, limit: 1000 });
+            const page = await env.STICKERS_FILES.list({ prefix: cat.id + "/", cursor, limit: 1000, include: ["customMetadata"] });
             for (const obj of page.objects) items.push({ key: obj.key, name: obj.customMetadata?.originalName || obj.key.split("/").pop(), category: cat.id, url: "/api/library/file?key=" + encodeURIComponent(obj.key) });
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor);
