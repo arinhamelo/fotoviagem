@@ -37,6 +37,6 @@ $("login").onclick=async()=>{try{await api("/api/admin/login","POST",{password:$
 $("savePrompt").onclick=async()=>{try{await api("/api/admin/prompt","PUT",{prompt:$("prompt").value});adminStatus("Prompt salvo. As próximas gerações usarão as novas instruções.","success")}catch(e){adminStatus(e.message,"error")}};
 $("logout").onclick=async()=>{await api("/api/admin/logout","POST",{});$("loginArea").classList.remove("hidden");$("promptArea").classList.add("hidden");$("adminPassword").value="";adminStatus("Sessão encerrada.")};
 if(location.hash==="#admin")$("adminOpen").click();
-fetch("/api/health").then(r=>r.json()).then(d=>{if(!d.aiConfigured)status("A aplicação está montada, mas a chave GEMINI_API_KEY ainda precisa ser configurada no Cloudflare.")}).catch(()=>status("Não foi possível verificar a conexão com o servidor.","error"));
+fetch("/api/health").then(r=>r.json()).then(d=>{if(!d.aiConfigured)status("O serviço gratuito de geração ainda não está disponível. Verifique o vínculo Workers AI.")}).catch(()=>status("Não foi possível verificar a conexão com o servidor.","error"));
 })();
 </script></body></html>
