@@ -122,7 +122,7 @@ export default {
           let cursor;
           do {
             const page = await env.STICKERS_FILES.list({ prefix: cat.id + "/", cursor, limit: 1000, include: ["customMetadata"] });
-            for (const obj of page.objects) items.push({ key: obj.key, name: obj.customMetadata?.originalName || obj.key.split("/").pop(), category: cat.id, url: "/api/library/file?key=" + encodeURIComponent(obj.key) });
+            for (const obj of page.objects) { const details = await env.STICKERS_FILES.head(obj.key); const storedName = details?.customMetadata?.originalName || obj.customMetadata?.originalName; const fallbackName = obj.key.split("/").pop().replace(/^[0-9a-f-]{36}-/i, "").replace(/_/g, " "); items.push({ key: obj.key, name: storedName || fallbackName, category: cat.id, url: "/api/library/file?key=" + encodeURIComponent(obj.key) }); }
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor);
         }
