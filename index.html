@@ -71,7 +71,7 @@ function renderAdminLibrary(data){
   for(const item of items){
     const card=document.createElement("div");card.className="library-item";
     const img=document.createElement("img");img.src=item.url;img.alt=item.name;
-    const name=document.createElement("span");name.textContent=item.name;
+    
     const del=document.createElement("button");del.type="button";del.className="secondary";del.style.marginTop="7px";del.textContent="Excluir PNG";
     del.onclick=async()=>{if(!confirm('Excluir "'+item.name+'" da biblioteca?'))return;del.disabled=true;try{await api("/api/admin/library/file","DELETE",{key:item.key});adminStatus("PNG excluído.", "success");await refreshAdminLibrary(selected)}catch(e){adminStatus(e.message,"error");del.disabled=false}};
     card.append(img,name,del);grid.append(card);
