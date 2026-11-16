@@ -40,20 +40,6 @@ async function api(path,method="GET",body){
   if(!r.ok)throw new Error(d.error||"Falha na solicitação.");
   return d;
 }
-async function api(path,method="GET",body){
-  const isForm=body instanceof FormData;
-  const r=await fetch(path,{method,headers:body&&!isForm?{"Content-Type":"application/json"}:{},body:body?(isForm?body:JSON.stringify(body)):undefined,credentials:"same-origin"});
-  let d={};try{d=await r.json()}catch{throw new Error("Resposta inválida do servidor.")};
-  if(!r.ok)throw new Error(d.error||"Falha na solicitação.");
-  return d;
-}
-async function loadLibrary(category=""){const q=category?"?category="+encodeURIComponent(category):"";return api("/api/library"+q)}
-let libraryCategories=[];
-function renderCategories(){const grid=$("categoryChoices");grid.innerHTML="";for(const cat of libraryCategories){const b=document.createElement("button");b.type="button";b.className="category-button";b.textContent=cat.name;b.onclick=()=>showCategory(cat);grid.append(b)}if(!libraryCategories.length){const p=document.createElement("p");p.className="small";p.textContent="Nenhuma categoria disponível no momento.";grid.append(p)}}
-async function showCategory(cat){try{const data=await loadLibrary(cat.id),grid=$("libraryChoices");$("selectedCategoryName").textContent=cat.name;grid.innerHTML="";for(const item of data.items){const b=document.createElement("button");b.className="library-item";b.type="button";const img=document.createElement("img");img.src=item.url;img.alt="Elemento PNG";b.append(img);b.onclick=()=>{if(!photo){status("Escolha uma fotografia antes de inserir o PNG.","error");return}setLibraryOverlay(item.url)};grid.append(b)}$("libraryEmpty").classList.toggle("hidden",data.items.length>0);$("categoryBrowser").classList.add("hidden");$("libraryPicker").classList.remove("hidden")}catch(e){status(e.message,"error")}}
-async function initCategories(){try{const data=await loadLibrary();libraryCategories=data.categories||[];renderCategories()}catch(e){$("categoryChoices").textContent="Não foi possível carregar as categorias."}}
-$("backCategories").onclick=()=>{$("libraryPicker").classList.add("hidden");$("categoryBrowser").classList.remove("hidden")};
-initCategories();
 async function loadLibrary(category=""){const q=category?"?category="+encodeURIComponent(category):"";return api("/api/library"+q)}
 let libraryCategories=[];
 function renderCategories(){const grid=$("categoryChoices");grid.innerHTML="";for(const cat of libraryCategories){const b=document.createElement("button");b.type="button";b.className="category-button";b.textContent=cat.name;b.onclick=()=>showCategory(cat);grid.append(b)}if(!libraryCategories.length){const p=document.createElement("p");p.className="small";p.textContent="Nenhuma categoria disponível no momento.";grid.append(p)}}
