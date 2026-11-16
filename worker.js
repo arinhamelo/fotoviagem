@@ -138,7 +138,7 @@ export default {
             cursor = page.truncated ? page.cursor : undefined;
           } while (cursor);
         }
-        return json({ categories, items });
+        return json({ categories: categories.map(({ passwordHash, ...cat }) => cat), items });
       }
       if (url.pathname === "/api/library/file" && request.method === "GET") {
         if (!env.STICKERS_FILES) return json({ error: "Biblioteca não configurada." }, 503);
