@@ -9,7 +9,6 @@ Editor de fotografias com stickers PNG. A foto fica no navegador; os stickers v√
 - Cloudflare KV `STICKERS`: lista de categorias (inclui hash da senha das categorias protegidas).
 - Cloudflare R2 `STICKERS_FILES`: arquivos PNG, organizados em `<id-da-categoria>/<arquivo>.png`.
 - Secret `ADMIN_PASSWORD`: senha do painel administrativo.
-- Binding `AI`: usado apenas pelo endpoint legado `/api/generate` (a interface atual n√£o o utiliza).
 
 ## Carregamento
 
