@@ -74,7 +74,7 @@ async function safeEqual(a, b) {
   return diff === 0;
 }
 function cookie(value, maxAge) {
-  return `fv_admin=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+  return "fv_admin=" + value + "; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=" + maxAge;
 }
 async function readJson(request, max = 20000) {
   const text = await request.text();
