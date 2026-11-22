@@ -8,8 +8,14 @@
   },
   "kv_namespaces": [
     {
-      "binding": "PROMPTS",
+      "binding": "STICKERS",
       "id": "265e088c512645c687a50145b4b0ab80"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STICKERS_FILES",
+      "bucket_name": "fotoviagem-lettering"
     }
   ],
   "observability": {
