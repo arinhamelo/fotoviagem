@@ -193,7 +193,7 @@ async function handle(request, env) {
           if (!name) return json({ error: "Informe o nome da categoria." }, 400);
           const categories = await getCategories();
           if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) return json({ error: "Esta categoria já existe." }, 409);
-          const slug = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "categoria";
+          const slug = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "categoria";
           const id = slug + "-" + crypto.randomUUID().slice(0, 6);
           const password = String(body.password || "");
           if (password && !validPassword(password)) return json({ error: "A senha deve ter entre 3 e 64 caracteres." }, 400);
