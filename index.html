@@ -222,8 +222,8 @@ function renderDetail(){
   const rmPw=c.protected?h("button",{class:"secondary btn-sm",type:"button"},"Remover senha"):null;
   if(rmPw)rmPw.onclick=()=>{if(!confirm("Remover a senha de “"+c.name+"”? Qualquer pessoa poderá abrir a categoria."))return;run(rmPw,()=>patchCategory(c.id,{removePassword:true},"Senha removida."))};
   const settings=h("div",{class:"adm-card"},h("h3",{},"Nome"),h("div",{class:"adm-field"},nameIn,saveName),h("div",{class:"adm-sep"}),h("h3",{},"Senha"),h("p",{class:"hint"},c.protected?"Esta categoria pede senha no editor. A senha atual não pode ser exibida (fica guardada de forma criptografada), mas você pode definir uma nova a qualquer momento.":"Sem senha: qualquer pessoa pode abrir. Defina uma para proteger."),h("div",{class:"adm-field"},pw,eye,savePw,rmPw));
-  const input=h("input",{type:"file",accept:"image/png,.png,image/gif,.gif",multiple:true,class:"hidden"});
-  const zone=h("div",{class:"dropzone",tabindex:"0",role:"button","aria-label":"Adicionar stickers PNG ou GIF"},h("strong",{},"+ Adicionar stickers"),h("span",{},"Clique ou arraste PNGs ou GIFs animados aqui (até 8 MB cada, vários de uma vez)"),input);
+  const input=h("input",{type:"file",accept:"image/png,.png,image/gif,.gif,image/svg+xml,.svg",multiple:true,class:"hidden"});
+  const zone=h("div",{class:"dropzone",tabindex:"0",role:"button","aria-label":"Adicionar stickers PNG, GIF ou SVG"},h("strong",{},"+ Adicionar stickers"),h("span",{},"Clique ou arraste PNG, GIF animado ou SVG vetorial aqui (PNG/GIF até 8 MB, SVG até 1 MB; vários de uma vez)"),input);
   const upload=async list=>{zone.classList.add("busy");try{await uploadFiles(c,list)}catch(e){adminStatus(e.message,"error")}finally{zone.classList.remove("busy");input.value=""}};
   zone.onclick=e=>{if(e.target!==input)input.click()};zone.onkeydown=e=>{if(e.target===zone&&(e.key==="Enter"||e.key===" ")){e.preventDefault();input.click()}};
   input.onchange=()=>upload(input.files);
@@ -249,8 +249,8 @@ function renderStickers(){
 }
 async function uploadFiles(c,list){
   const files=[...list];if(!files.length)return;
-  const bad=files.filter(f=>!/^image\/(png|gif)$/.test(f.type)||f.size>8*1024*1024);
-  if(bad.length)throw new Error(bad.length+" arquivo(s) não são PNG/GIF ou passam de 8 MB: "+bad.slice(0,2).map(f=>f.name).join(", ")+(bad.length>2?"…":""));
+  const bad=files.filter(f=>!/^image\/(png|gif|svg\+xml)$/.test(f.type)||f.size>(f.type==="image/svg+xml"?1024*1024:8*1024*1024));
+  if(bad.length)throw new Error(bad.length+" arquivo(s) não são PNG/GIF/SVG ou passam do limite (8 MB; SVG 1 MB): "+bad.slice(0,2).map(f=>f.name).join(", ")+(bad.length>2?"…":""));
   let sent=0;
   for(let i=0;i<files.length;i+=6){
     adminStatus("Enviando "+Math.min(i+6,files.length)+" de "+files.length+"…","loading");

@@ -28,3 +28,9 @@ Ao abrir o site, o navegador busca só a lista de categorias (`/api/library?view
 - `npx wrangler deploy`
 
 Atenção: `wrangler deploy` aplica os bindings de `wrangler.jsonc`; confira se eles correspondem aos usados no painel da Cloudflare.
+
+## SVG vetorial
+
+O admin aceita SVG (até 1 MB cada) além de PNG e GIF. O servidor recusa SVG com script, eventos, ENTITY ou links externos, e
+acrescenta width/height a partir do viewBox quando faltam. No editor o SVG funciona como PNG (a imagem final continua PNG).
+No Illustrator: exportar SVG 1.1 com "Atributos de apresentação", texto em contornos e sem imagens embutidas.
